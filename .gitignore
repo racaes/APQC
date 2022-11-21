@@ -127,3 +127,9 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# JetBrains IDE
+.idea/
+
+# Folder with sensitive data
+data/sensitive_data

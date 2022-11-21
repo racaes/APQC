@@ -81,7 +81,7 @@ def pairwise_d2_mat_v3(a, b):
     return r_a - 2 * np.dot(a, np.transpose(b)) + np.transpose(r_b)
 
 
-@tf.function
+# @tf.function
 def agg_sum(data, vector, value, op=0):
     subset = tf.boolean_mask(data, tf.equal(vector, value))
     if op == 0:

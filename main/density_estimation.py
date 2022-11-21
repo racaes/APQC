@@ -4,7 +4,7 @@ from typing import Optional, Union
 import numpy as np
 import tensorflow as tf
 
-from pqc_utils.pqc_utils import pairwise_d2_mat_v2, set_float_type, optimizers_classes
+from pqc_utils.pqc_utils import pairwise_d2_mat_v2, set_float_type, optimizers_classes, agg_sum
 
 
 class DensityEstimator:
@@ -65,6 +65,7 @@ class DensityEstimator:
             self.loss_1: Optional[tf.Variable] = None
             self.step: Optional[tf.Variable] = None
             self.trigger: Optional[tf.Variable] = None
+            self.clusters: Optional[Union[np.ndarray, tf.Tensor]] = None
             # self.preset_log_sigma: Optional[tf.Tensor] = None
 
         # self.log_sigma_trained: Optional[tf.Tensor] = None
@@ -73,6 +74,16 @@ class DensityEstimator:
             self.opt = tf.keras.optimizers.Adam()
         else:
             self.opt = optimizer
+
+    def set_clusters(self, clusters: Optional[Union[np.ndarray, tf.Tensor]]):
+        clusters = tf.cast(clusters, dtype=tf.int32)
+        if self.clusters is None:
+            self.clusters = tf.Variable(clusters, dtype=tf.int32)
+        else:
+            self.clusters.assign(clusters)
+
+    def reset_clusters(self):
+        self.clusters = None
 
     def fit(self,
             preset_init: Optional[np.ndarray] = None,
@@ -116,14 +127,19 @@ class DensityEstimator:
 
         return ll.numpy()
 
-    @tf.function
+    # @tf.function
     def compute_loss(self,
                      data_eval: Union[np.ndarray, tf.Tensor],
                      data_gen: Union[np.ndarray, tf.Tensor],
                      log_sigma: tf.Variable,
-                     apply_mask: bool = True
-                     ):
-
+                     apply_mask: bool = True,
+                     apply_constraints: bool = False):
+        """
+        Log[P(X)] = sum_j log(sum_i Psi_i(x_j)) - N*log(N)
+        P(x_j) = sum_i Psi_i(x_j) / N
+        P(k|x_j) = sum_(i€k) Psi_i(x_j) / sum_i Psi_i(x_j)
+        Log[P(K|X) = sum_j log(sum_(i€k) Psi_i(x_j)) - sum_j log(sum_i Psi_i(x_j))
+        """
         d2 = tf.cast(
             pairwise_d2_mat_v2(
                 tf.cast(data_gen, dtype=self.float_type),
@@ -138,25 +154,36 @@ class DensityEstimator:
 
         exp_kernel_i = tf.exp(-0.5 * tf.math.divide(d2, tf.square(sigma_mat)))
         if apply_mask:
-            # mask = tf.linalg.set_diag(tf.ones_like(exp_kernel_i), tf.zeros(tf.shape(exp_kernel_i)[0]))
-            # exp_kernel_i = tf.math.multiply(exp_kernel_i, mask)
             exp_kernel_i = tf.where(tf.math.equal(exp_kernel_i, 1.0),
                                     tf.zeros_like(exp_kernel_i, dtype=self.float_type),
                                     exp_kernel_i)
 
         dens_i = tf.math.multiply(exp_kernel_i, norm_factor) + self.eps
-        """        
-        Log[P(X)] = sum_j log(sum_i Psi_i(x_j)) - N*log(N)
-        P(x_j) = sum_i Psi_i(x_j) / N
-        P(k|x_j) = sum_(i€k) Psi_i(x_j) / sum_i Psi_i(x_j)
-        Log[P(K|X) = sum_j log(sum_(i€k) Psi_i(x_j)) - sum_j log(sum_i Psi_i(x_j))
-        """
 
-        loglikelihood = -tf.reduce_mean(tf.math.log(tf.reduce_mean(dens_i, axis=0, keepdims=True)))
+        if self.clusters is not None:
+            unique_k = tf.unique(self.clusters)[0]
+            if tf.shape(unique_k)[0] == 1 and apply_constraints:
+                loglikelihood = -tf.reduce_mean(tf.math.log(tf.reduce_mean(dens_i, axis=0, keepdims=True)))
+            else:
+                dens_k = tf.stack([agg_sum(dens_i, self.clusters, k) for k in unique_k], axis=0)
+                dens_k_max = tf.reduce_max(dens_k, axis=0, keepdims=True)
+                dens_all = tf.reduce_sum(dens_i, axis=0, keepdims=True)
+
+                # loglikelihood = -tf.reduce_mean(tf.math.log(tf.divide(dens_k_max, dens_all)))
+                loglikelihood = -tf.reduce_mean(tf.math.log(dens_k_max) - tf.math.log(dens_all))
+
+            # if apply_constraints:
+            #     penalize = tf.reduce_mean(tf.exp(log_sigma)) * 100
+            #     k = tf.cast(tf.shape(unique_k)[0], dtype=self.float_type)
+            #     k_too_high = tf.cast(tf.greater_equal(k, 0.5 * self.N_gen), dtype=self.float_type)
+            #     k_too_low = tf.cast(tf.less_equal(k, 1), dtype=self.float_type)
+            #     loglikelihood += (k_too_low - k_too_high) * penalize
+        else:
+            loglikelihood = -tf.reduce_mean(tf.math.log(tf.reduce_mean(dens_i, axis=0, keepdims=True)))
 
         return loglikelihood
 
-    @tf.function
+    # @tf.function
     def train_step(self, data_eval):
         with tf.GradientTape() as tape:
             loss = self.compute_loss(data_eval, self.data_gen, self.log_sigma)
@@ -167,15 +194,11 @@ class DensityEstimator:
         self.opt.apply_gradients(zip(gradients, [self.log_sigma]))
         return loss
 
-    @tf.function
+    # @tf.function
     def train_loop(self,
                    infinite_steps: bool = False,
                    steps: int = 40000,
-                   patience: int = 10,
-                   # gen_ratio: float = 0.2
-                   ):
-        # gen_idx: Optional[Union[List[int], np.ndarray]] = None
-        # n_ratio = tf.constant(gen_ratio * self.D_gen, dtype=tf.int32)
+                   patience: int = 10):
 
         infinite_steps = tf.constant(infinite_steps, dtype=tf.bool)
 
@@ -191,11 +214,6 @@ class DensityEstimator:
             self.loss_1 = tf.Variable(loss)
         else:
             self.loss_1.assign(loss)
-
-        # self.variable_assign(self.loss_0, loss)
-        # self.variable_assign(self.loss_1, loss)
-        # self.variable_assign(self.step, 0)
-        # self.variable_assign(self.trigger, 0)
 
         if self.step is None:
             self.step = tf.Variable(0, dtype=tf.int32)
@@ -239,18 +257,10 @@ class DensityEstimator:
                 tf.print(self.loss_0.value())
             self.step.assign_add(1)
 
-            # loss_list.append(loss.numpy())
-            # loss_list.append(loss)
         loss_vector = loss_array.stack()
         loss_array.close()
         return loss_vector
 
-    # @staticmethod
-    # def variable_assign(self, variable: Optional[tf.Variable], value):
-    #     if variable is None:
-    #         variable = tf.Variable(value)
-    #     else:
-    #         variable.assign(value)
     @tf.function
     def sample_data_eval(self, scale=0.10, apply_noise=True, apply_scale_noise=True):
 
