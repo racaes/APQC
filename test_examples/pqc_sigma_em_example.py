@@ -31,7 +31,7 @@ if preview:
     plt.show()
 
 
-pqc = PQC(data_gen=x_gen, float_type=32, batch=batch_manual, force_cpu=True)
+pqc = PQC(data_gen=x_gen, float_type=32, batch=batch_manual, force_cpu=True, merge_by_proba_clusters=False)
 
 result_dict = {
     "sigmas": [],
@@ -114,7 +114,8 @@ plt.plot(result_dict["sigmas"], result_dict["likelihood"], '*-')
 plt.show()
 
 plt.figure()
-sns.scatterplot(x=x_gen[:, 0], y=x_gen[:, 1], alpha=0.4, hue=pqc.proba_labels, size=pqc.k_proba, palette="deep")
+sns.scatterplot(x=x_gen[:, 0].flatten(), y=x_gen[:, 1].flatten(), alpha=0.4,
+                hue=pqc.proba_labels.flatten(), size=pqc.k_proba.flatten(), palette="deep")
 plt.show()
 
 print("End of script!")
