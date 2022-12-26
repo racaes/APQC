@@ -26,12 +26,13 @@ x_gen = scaler.fit_transform(X)
 scan_sigma = True
 find_best_sigma = True
 preview = False
+pqc_sigmas_check = True
 if preview:
     sns.scatterplot(x=x_gen[:, 0], y=x_gen[:, 1], alpha=0.6, hue=y.flatten(), palette="deep")
     plt.show()
 
 
-pqc = PQC(data_gen=x_gen, float_type=32, batch=batch_manual, force_cpu=True, merge_by_proba_clusters=False)
+pqc = PQC(data_gen=x_gen, float_type=32, batch=batch_manual, force_cpu=False, merge_by_proba_clusters=False)
 
 result_dict = {
     "sigmas": [],
@@ -42,6 +43,11 @@ result_dict = {
 }
 
 d_e = DensityEstimator(data_gen=pqc.data_gen, batch=batch_manual, scale=pqc.scale, optimizer=optimizer)
+
+if pqc_sigmas_check:
+    knn_ratios = np.linspace(0.10, 0.4, 10)
+    pqc.scan_multiple_sigmas(knn_ratios=knn_ratios)
+    print("PQC_sigmas_check!")
 
 for i in range(10):
 

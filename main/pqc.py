@@ -11,6 +11,7 @@ import seaborn as sns
 import networkx as nx
 import numba as nb
 import numpy as np
+import pandas as pd
 import tensorflow as tf
 from scipy import interpolate
 from scipy.cluster.hierarchy import dendrogram, linkage, num_obs_linkage, fcluster
@@ -732,7 +733,9 @@ class PQC:
 
         return True
 
-    def scan_multiple_sigmas(self, knn_ratios: Optional[Union[np.ndarray, List[float]]] = None, plot3d: bool = True):
+    def scan_multiple_sigmas(self, knn_ratios: Optional[Union[np.ndarray, List[float]]] = None,
+                             plot2d: bool = True,
+                             plot3d: bool = True):
         if knn_ratios is None:
             knn_ratios = np.linspace(0.1, 0.4, 4)
         t0 = time.time()
@@ -746,6 +749,24 @@ class PQC:
         t1 = time.time()
 
         print(f"Scanning time: {round(t1 - t0, 3)} s")
+        if plot2d and len(self.energy_merge_results) > 0:
+            res_2d = pd.DataFrame(
+                [
+                    {
+                        "sigmas": k[1],
+                        "SGD_K": v["sgd_cluster_number"][0],
+                        "clusters_proba": v["proba_cluster_number"][0],
+                        "likelihood": v["merged_loglikelihood"][0]
+                    } for k, v in self.energy_merge_results.items()
+                ]
+            )
+            plt.subplot(2, 1, 1)
+            plt.plot(res_2d["sigmas"], res_2d["likelihood"], "-*")
+            plt.grid(which="both")
+            plt.subplot(2, 1, 2)
+            plt.semilogy(res_2d["sigmas"], res_2d["clusters_proba"], "-+")
+            plt.grid(which="both")
+            plt.show()
 
         if plot3d and len(self.energy_merge_results) > 0:
             self.plot_3d_results()
