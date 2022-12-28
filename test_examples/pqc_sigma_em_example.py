@@ -12,21 +12,23 @@ from main.density_estimation import DensityEstimator
 
 cm = plt.cm.get_cmap('RdYlBu')
 D = 2
-samples = 2000
+samples = 1000
 batch_manual = 100
 scan_length = 3
-optimizer = tf.keras.optimizers.SGD(learning_rate=0.001)
+# optimizer = tf.keras.optimizers.SGD(learning_rate=0.05)
+optimizer = tf.keras.optimizers.Nadam(learning_rate=0.05)
 
-X, y = get_2d_toy_data("original_paper_toy_data_1", n_samples=samples, noise=0.15)
+# X, y = get_2d_toy_data("original_paper_toy_data_1", n_samples=samples, noise=0.15)
+X, y = get_2d_toy_data("blobs", n_samples=samples, noise=1.5)
 
 scaler = StandardScaler()
 
 x_gen = scaler.fit_transform(X)
 
-scan_sigma = True
-find_best_sigma = True
+scan_sigma = False
+# find_best_sigma = True
 preview = False
-pqc_sigmas_check = True
+pqc_sigmas_check = False
 if preview:
     sns.scatterplot(x=x_gen[:, 0], y=x_gen[:, 1], alpha=0.6, hue=y.flatten(), palette="deep")
     plt.show()
@@ -42,24 +44,24 @@ result_dict = {
     "ll_trained": []
 }
 
-d_e = DensityEstimator(data_gen=pqc.data_gen, batch=batch_manual, scale=pqc.scale, optimizer=optimizer)
+d_e = DensityEstimator(data_gen=pqc.data_gen, batch=samples, scale=pqc.scale, optimizer=optimizer)
 
 if pqc_sigmas_check:
-    knn_ratios = np.linspace(0.10, 0.4, 10)
-    pqc.scan_multiple_sigmas(knn_ratios=knn_ratios)
+    knn_ratios = np.linspace(0.10, 0.4, 30)
+    pqc.scan_multiple_sigmas(knn_ratios=knn_ratios, plot2d=True, plot3d=True)
     print("PQC_sigmas_check!")
 
-for i in range(10):
+for i in range(40):
 
     if i == 0:
-        pqc.set_sigmas(knn_ratio=0.25)
+        pqc.set_sigmas(knn_ratio=0.20)
         sigmas, log_sigmas = None, None
         ll = None
         sigma_dif = None
     else:
         if not scan_sigma:
             d_e.set_clusters(pqc.proba_labels)
-            ll = d_e.fit(preset_init=pqc.sigmas, steps=1)
+            ll = d_e.fit(preset_init=pqc.sigmas, steps=25)
             # if len(np.unique(pqc.proba_labels)) > 1:
             #     d_e.set_clusters(pqc.proba_labels)
             #     ll = d_e.fit(preset_init=pqc.sigmas, steps=1)
@@ -96,7 +98,8 @@ for i in range(10):
     if preview and sigmas is not None:
 
         fig, axs = plt.subplots(2, 1, figsize=(12, 8))
-
+        axs[0].set_title("Log sigma")
+        axs[1].set_title("Sigma")
         sc0 = axs[0].scatter(x_gen[:, 0], x_gen[:, 1], c=log_sigmas, vmin=min(log_sigmas), vmax=max(log_sigmas),
                              s=35, cmap=cm, alpha=0.4)
         sc1 = axs[1].scatter(x_gen[:, 0], x_gen[:, 1], c=sigmas, vmin=min(sigmas), vmax=max(sigmas),
@@ -106,17 +109,31 @@ for i in range(10):
         plt.show()
 
     if preview and sigma_dif is not None:
+        _, ax = plt.subplots(figsize=(12, 12))
+        ax.stem(np.arange(len(sigma_dif)), sigma_dif)
+        ax.set_title(f"Iteration {i}")
+        plt.show()
+
         fig, ax = plt.subplots(figsize=(12, 12))
         sc0 = ax.scatter(x_gen[:, 0], x_gen[:, 1], c=sigma_dif, s=35, cmap=cm, alpha=0.3)
         fig.colorbar(sc0, ax=ax)
         plt.show()
 
-plt.figure()
-plt.plot(result_dict["sigmas"], result_dict["clusters_proba"], '*-')
-plt.show()
+    import time
+    print(f"Iteration {i}")
+    time.sleep(1)
+    print(" has ended.")
 
-plt.figure()
-plt.plot(result_dict["sigmas"], result_dict["likelihood"], '*-')
+_, axs = plt.subplots(4, 1, figsize=(6, 12))
+axs[0].plot(result_dict["sigmas"], '*-')
+axs[1].plot(result_dict["clusters_sgd"], '*-')
+axs[2].plot(result_dict["clusters_proba"], '*-')
+axs[3].plot(result_dict["likelihood"], '*-')
+axs[0].set_ylabel("sigmas")
+axs[1].set_ylabel("clusters_sgd")
+axs[2].set_ylabel("clusters_proba")
+axs[3].set_ylabel("likelihood")
+axs[3].set_xlabel("iteration")
 plt.show()
 
 plt.figure()
@@ -124,4 +141,8 @@ sns.scatterplot(x=x_gen[:, 0].flatten(), y=x_gen[:, 1].flatten(), alpha=0.4,
                 hue=pqc.proba_labels.flatten(), size=pqc.k_proba.flatten(), palette="deep")
 plt.show()
 
+all_ll_trained = np.concatenate(result_dict["ll_trained"][1:])
+plt.figure()
+plt.plot(all_ll_trained)
+plt.show()
 print("End of script!")

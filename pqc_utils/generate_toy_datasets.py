@@ -18,7 +18,7 @@ def get_2d_toy_data(data_type: str, n_samples=1500, noise=0.05, seed=170):
         return noisy_moons
 
     elif data_type == "blobs":
-        blobs = datasets.make_blobs(n_samples=n_samples, random_state=seed)
+        blobs = datasets.make_blobs(n_samples=n_samples, random_state=seed, cluster_std=noise)
         return blobs
 
     elif data_type == "no_structure":

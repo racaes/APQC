@@ -110,10 +110,14 @@ class DensityEstimator:
                    patience: int = 4,
                    ):
         if preset_log_sigma is None:
-            preset_log_sigma = np.zeros((self.data_gen.shape[0], 1))
+            preset_log_sigma = np.ones((self.data_gen.shape[0], 1))
+        else:
+            assert np.all(preset_log_sigma > 0)
+
         if len(preset_log_sigma.shape) == 1 and preset_log_sigma.shape[0] == self.N_gen:
             preset_log_sigma = preset_log_sigma.reshape(-1, 1)
 
+        preset_log_sigma = np.log(preset_log_sigma)
         if self.log_sigma is None:
             self.log_sigma = tf.Variable(tf.constant(preset_log_sigma, dtype=self.float_type))
         else:
@@ -225,6 +229,11 @@ class DensityEstimator:
         else:
             self.trigger.assign(0)
 
+        # # ################ TO DELETE #######################
+        # ls = self.log_sigma.numpy()
+        # import matplotlib.pyplot as plt
+        # # ################ TO DELETE #######################
+
         loss_array = tf.TensorArray(tf.float32, size=0, dynamic_size=True, clear_after_read=False)
 
         # while tf.less(self.step, steps):
@@ -236,10 +245,23 @@ class DensityEstimator:
                 tf.less(self.trigger, patience)
         ):
 
-            if self.step.value() % 10 == 0:
+            if self.step.value() % 5 == 0:
                 data_eval = self.sample_data_eval()
 
             loss = self.train_step(data_eval=data_eval)
+            # # ################ TO DELETE #######################
+            # ls1 = self.log_sigma.numpy()
+            # plt.figure(figsize=(12, 6))
+            # plt.stem(np.arange(len(ls)), ls1 - ls, '*')
+            # plt.title("log dif")
+            # plt.show()
+            #
+            # plt.figure(figsize=(12, 6))
+            # plt.stem(np.arange(len(ls)), np.exp(ls1) - np.exp(ls), '*')
+            # plt.title("sigma dif")
+            # plt.show()
+            # ls = ls1
+            # # ################ TO DELETE #######################
 
             self.loss_0.assign(loss * 0.001 + self.loss_0.value() * (1 - 0.001))
             self.loss_1.assign(loss * 0.005 + self.loss_1.value() * (1 - 0.005))

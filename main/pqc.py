@@ -20,6 +20,7 @@ from scipy.spatial.distance import pdist, squareform
 from pqc_utils.pqc_utils import (pairwise_d2_mat_v3, pairwise_d2_mat_v2, reduce_sum, reduce_mean, nb_sort, nb_mean,
                                  moving_average, set_float_type, optimizers_classes)
 
+
 # # TODO This really helps?
 # import os
 #
@@ -227,10 +228,10 @@ class PQC:
             for batch in dataset_train:
                 wave_i = self.qc_wave_function_per_sample(batch)
 
-                t0 = time.time()
+                # t0 = time.time()
 
                 k_proba_joint_i, _ = reduce_sum(data=wave_i.numpy(), vector=labels)
-                print(f"Reduce op runtime: {round(time.time() - t0, 3)} s")
+                # print(f"Reduce op runtime: {round(time.time() - t0, 3)} s")
 
                 k_proba_sum = np.sum(k_proba_joint_i, axis=0, keepdims=True)
                 k_proba_i = k_proba_joint_i / k_proba_sum
@@ -361,7 +362,7 @@ class PQC:
                       steps: int = 20000,
                       infinite_steps: bool = False,
                       patience: int = 4,
-                      plot_allocation: bool = True):
+                      plot_allocation: bool = False):
 
         if len(data_train0.shape) == 1:
             if isinstance(data_train0, np.ndarray):
@@ -641,7 +642,7 @@ class PQC:
 
         return merged_labels, merged_energies  # merged_labels_mat contains labels as columns up to n0 - 1
 
-    def build_labels_from_cluster_merging(self, plot_results: bool = True):
+    def build_labels_from_cluster_merging(self, plot_results: bool = False):
 
         potential_pairs = self.compute_energy_between_potential_wells()
         potential_matrix_condensed = self.compute_shortest_path(potential_pairs)
@@ -719,7 +720,7 @@ class PQC:
             }
         )
 
-    def hierarchical_energy_merge(self):
+    def hierarchical_energy_merge(self, plot_results: bool = False):
         if self.k_num > self.max_cluster_number:
             warnings.warn("Too many cluster number to compute energies between potential wells.")
             return False
@@ -729,11 +730,12 @@ class PQC:
             warnings.warn("Degenerate solution. There is only one cluster.")
             return False
 
-        self.build_labels_from_cluster_merging(plot_results=True)
+        self.build_labels_from_cluster_merging(plot_results=plot_results)
 
         return True
 
-    def scan_multiple_sigmas(self, knn_ratios: Optional[Union[np.ndarray, List[float]]] = None,
+    def scan_multiple_sigmas(self,
+                             knn_ratios: Optional[Union[np.ndarray, List[float]]] = None,
                              plot2d: bool = True,
                              plot3d: bool = True):
         if knn_ratios is None:
@@ -760,12 +762,15 @@ class PQC:
                     } for k, v in self.energy_merge_results.items()
                 ]
             )
-            plt.subplot(2, 1, 1)
-            plt.plot(res_2d["sigmas"], res_2d["likelihood"], "-*")
-            plt.grid(which="both")
-            plt.subplot(2, 1, 2)
-            plt.semilogy(res_2d["sigmas"], res_2d["clusters_proba"], "-+")
-            plt.grid(which="both")
+            fig, ax = plt.subplots(2, 1)
+            fig.suptitle("Cluster number and ANLL per knn% without merging energies")
+            ax[0].plot(res_2d["sigmas"], res_2d["likelihood"], "-*")
+            ax[0].grid(which="both")
+            ax[0].set_ylabel("# Clusters")
+            ax[1].semilogy(res_2d["sigmas"], res_2d["clusters_proba"], "-+")
+            ax[1].grid(which="both")
+            ax[1].set_xlabel("% KNN")
+            ax[1].set_ylabel("ANLL")
             plt.show()
 
         if plot3d and len(self.energy_merge_results) > 0:
