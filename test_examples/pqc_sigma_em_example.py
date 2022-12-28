@@ -12,7 +12,7 @@ from main.density_estimation import DensityEstimator
 
 cm = plt.cm.get_cmap('RdYlBu')
 D = 2
-samples = 1000
+samples = 10
 batch_manual = 100
 scan_length = 3
 # optimizer = tf.keras.optimizers.SGD(learning_rate=0.05)
@@ -44,7 +44,7 @@ result_dict = {
     "ll_trained": []
 }
 
-d_e = DensityEstimator(data_gen=pqc.data_gen, batch=samples, scale=pqc.scale, optimizer=optimizer)
+d_e = DensityEstimator(data_gen=pqc.data_gen, batch=int(0.25*len(X)), scale=pqc.scale, optimizer=optimizer)
 
 if pqc_sigmas_check:
     knn_ratios = np.linspace(0.10, 0.4, 30)
@@ -54,7 +54,7 @@ if pqc_sigmas_check:
 for i in range(40):
 
     if i == 0:
-        pqc.set_sigmas(knn_ratio=0.20)
+        pqc.set_sigmas(knn_ratio=0.50)
         sigmas, log_sigmas = None, None
         ll = None
         sigma_dif = None

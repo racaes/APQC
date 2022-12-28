@@ -164,6 +164,33 @@ class DensityEstimator:
 
         dens_i = tf.math.multiply(exp_kernel_i, norm_factor) + self.eps
 
+        # # ########## TO DELETE ############################
+        # with tf.GradientTape() as tape:
+        #     x = tf.linspace(0.01, 10, 200)
+        #     tape.watch(x)
+        #     # A sequence of operations involving reduce_max
+        #     norm_y = tf.math.pow(self.sqrt_2pi * x, -self.D_gen)  # + self.eps
+        #     y1 = tf.math.multiply(tf.exp(-0.5 * tf.math.divide(10, tf.square(x))), norm_y)  # + self.eps
+        #     y2 = tf.math.multiply(tf.exp(-0.5 * tf.math.divide(20, tf.square(x))), norm_y)
+        #     y3 = tf.math.multiply(tf.exp(-0.5 * tf.math.divide(30, tf.square(x))), norm_y)
+        #     # z = tf.math.log(y1 + y2) - tf.math.log(10 + y1 + y2 + y3)
+        #     z = (y1 + y2 + y3) / (10 + y1 + y2 + y3)
+        #     # z = (y2 + 1) / (10 + y1 + y2 + y3)
+        #     # z = (+1) / (10 + y1 + y2 + y3)
+        #     z = -tf.math.log(z)
+        #
+        # # Check gradients
+        # g = tape.gradient(z, x)
+        # # print(g.numpy())
+        # import matplotlib.pyplot as plt
+        # plt.figure()
+        # plt.plot(x.numpy(), g.numpy())
+        # plt.xlabel("sigma")
+        # plt.ylabel("ANLL gradient")
+        # plt.title("log[(y1 + y2 + y3) / (10 + y1 + y2 + y3)]")
+        # plt.show()
+        # # ########## TO DELETE ############################
+
         if self.clusters is not None:
             unique_k = tf.unique(self.clusters)[0]
             if tf.shape(unique_k)[0] == 1 and apply_constraints:
