@@ -75,6 +75,8 @@ class DensityEstimator:
         else:
             self.opt = optimizer
 
+        self.already_printed = False
+
     def set_clusters(self, clusters: Optional[Union[np.ndarray, tf.Tensor]]):
         clusters = tf.cast(clusters, dtype=tf.int32)
         if self.clusters is None:
@@ -91,13 +93,15 @@ class DensityEstimator:
             infinite_steps: bool = False,
             steps: int = 20000,
             patience: int = 4,
+            check_gradients: bool = False
             ):
         if fit_type == "scalar":
             ll = self.fit_scalar(
                 preset_log_sigma=preset_init,
                 infinite_steps=infinite_steps,
                 steps=steps,
-                patience=patience
+                patience=patience,
+                check_gradients=check_gradients
             )
             return ll
         else:
@@ -108,6 +112,7 @@ class DensityEstimator:
                    infinite_steps: bool = False,
                    steps: int = 20000,
                    patience: int = 4,
+                   check_gradients: bool = False
                    ):
         if preset_log_sigma is None:
             preset_log_sigma = np.ones((self.data_gen.shape[0], 1))
@@ -123,6 +128,9 @@ class DensityEstimator:
         else:
             self.log_sigma.assign(tf.constant(preset_log_sigma, dtype=self.float_type))
 
+        if check_gradients:
+            self.watch_gradients()
+
         ll = self.train_loop(infinite_steps=infinite_steps,
                              steps=steps,
                              patience=patience)
@@ -137,7 +145,8 @@ class DensityEstimator:
                      data_gen: Union[np.ndarray, tf.Tensor],
                      log_sigma: tf.Variable,
                      apply_mask: bool = True,
-                     apply_constraints: bool = False):
+                     apply_constraints: bool = False,
+                     regularization: bool = True):
         """
         Log[P(X)] = sum_j log(sum_i Psi_i(x_j)) - N*log(N)
         P(x_j) = sum_i Psi_i(x_j) / N
@@ -162,7 +171,14 @@ class DensityEstimator:
                                     tf.zeros_like(exp_kernel_i, dtype=self.float_type),
                                     exp_kernel_i)
 
-        dens_i = tf.math.multiply(exp_kernel_i, norm_factor) + self.eps
+        # dens_i = tf.math.multiply(exp_kernel_i, norm_factor) + self.eps
+        dens_i = tf.math.multiply(exp_kernel_i, norm_factor)
+        dens_i = tf.where(tf.math.less_equal(exp_kernel_i, self.eps),
+                          tf.zeros_like(dens_i, dtype=self.float_type),
+                          dens_i)
+        if tf.reduce_any(tf.math.equal(tf.reduce_max(dens_i, axis=0, keepdims=True), 0.0)):
+            tf.print("All density elements are zero for some eval points.")
+            dens_i += self.eps
 
         # # ########## TO DELETE ############################
         # with tf.GradientTape() as tape:
@@ -211,6 +227,14 @@ class DensityEstimator:
             #     loglikelihood += (k_too_low - k_too_high) * penalize
         else:
             loglikelihood = -tf.reduce_mean(tf.math.log(tf.reduce_mean(dens_i, axis=0, keepdims=True)))
+
+        if self.clusters is not None and regularization:
+            if not self.already_printed:
+                tf.print("Regularization is added to loglikelihood.")
+                self.already_printed = True
+            loglikelihood += -tf.reduce_mean(tf.where(tf.math.less_equal(exp_kernel_i, self.eps),
+                                                      tf.square(sigma_mat) * 5.0,
+                                                      tf.zeros_like(dens_i, dtype=self.float_type)))
 
         return loglikelihood
 
@@ -331,6 +355,64 @@ class DensityEstimator:
             data_eval += noise
 
         return data_eval
+
+    def watch_gradients(self, eval_type: str = "sample"):
+
+        if eval_type == "sample":
+            data_eval = self.sample_data_eval()
+        elif eval_type == "grid":
+
+            data_eval = self.data_gen.numpy()
+            dx = np.linspace(data_eval[:, 0].min(), data_eval[:, 0].max(), 50)
+            dy = np.linspace(data_eval[:, 1].min(), data_eval[:, 1].max(), 50)
+            dxv, dyv = np.meshgrid(dx, dy)
+            data_eval = tf.constant(np.hstack([dxv.reshape(-1, 1), dyv.reshape(-1, 1)]))
+        else:
+            data_eval = self.data_gen
+
+        import matplotlib.pyplot as plt
+        plt.figure()
+        plt.scatter(self.data_gen.numpy()[:, 0], self.data_gen.numpy()[:, 1],
+                    alpha=0.5, c=self.clusters.numpy(), s=20 * (self.clusters.numpy() ** 2 + 1))
+        plt.plot(data_eval.numpy()[0][0], data_eval.numpy()[0][1], 'r+')
+        plt.show()
+
+        x = tf.cast(tf.linspace(-4, 4, 500), dtype=self.float_type)
+        for i in range(10):
+            ls = tf.Variable(initial_value=self.log_sigma.value())
+
+            # i = 1
+            y = []
+            z = []
+
+            for x_i in x:
+                ls[i].assign(x_i)
+                with tf.GradientTape() as tape:
+                    tape.watch(ls)
+                    loss = self.compute_loss(data_eval, self.data_gen, ls)
+                    z.append(loss.numpy())
+
+                # Check gradients
+                g = tape.gradient(loss, [ls])
+                y.append(g[0][i])
+            # print(g.numpy())
+
+            plt.subplots(2, 1, figsize=(12, 6))
+            plt.subplot(2, 1, 1)
+            plt.plot(x, y)
+            # plt.xlabel(f"log sigma {i}")
+            plt.ylabel("ANLL gradient")
+            plt.grid(True, which="both")
+            # plt.show()
+
+            # plt.figure()
+            plt.subplot(2, 1, 2)
+            plt.plot(x, z)
+            plt.xlabel(f"log sigma {i}")
+            plt.ylabel("ANLL")
+            plt.grid(True, which="both")
+        plt.show()
+        print("End of function!")
 
 
 """
