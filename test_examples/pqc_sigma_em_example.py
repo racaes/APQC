@@ -149,4 +149,5 @@ all_ll_trained = np.concatenate(result_dict["ll_trained"][1:])
 plt.figure()
 plt.plot(all_ll_trained)
 plt.show()
+
 print("End of script!")
