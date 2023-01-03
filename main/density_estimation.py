@@ -5,6 +5,7 @@ import numpy as np
 import tensorflow as tf
 
 from pqc_utils.pqc_utils import pairwise_d2_mat_v2, set_float_type, optimizers_classes, agg_sum
+from sklearn.neighbors import NearestNeighbors
 
 
 class DensityEstimator:
@@ -76,6 +77,12 @@ class DensityEstimator:
             self.opt = optimizer
 
         self.already_printed = False
+        self.neigh = NearestNeighbors(n_neighbors=10)
+        self.neigh.fit(self.data_gen)
+        knn_dist, _ = self.neigh.kneighbors(self.data_gen, return_distance=True)
+        self.min_sigma = np.median(knn_dist[:, 1:])
+
+        print("wait a second")
 
     def set_clusters(self, clusters: Optional[Union[np.ndarray, tf.Tensor]]):
         clusters = tf.cast(clusters, dtype=tf.int32)
@@ -232,9 +239,10 @@ class DensityEstimator:
             if not self.already_printed:
                 tf.print("Regularization is added to loglikelihood.")
                 self.already_printed = True
-            loglikelihood += -tf.reduce_mean(tf.where(tf.math.less_equal(exp_kernel_i, self.eps),
-                                                      tf.square(sigma_mat) * 5.0,
-                                                      tf.zeros_like(dens_i, dtype=self.float_type)))
+            loglikelihood += tf.reduce_mean(tf.where(tf.math.less_equal(exp_kernel_i, self.eps),
+                                                     norm_factor * 1.0,
+                                                     # tf.square(sigma_mat) * 5.0,
+                                                     tf.zeros_like(dens_i, dtype=self.float_type)))
 
         return loglikelihood
 

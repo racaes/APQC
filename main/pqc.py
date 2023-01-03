@@ -766,11 +766,12 @@ class PQC:
             fig.suptitle("Cluster number and ANLL per knn% without merging energies")
             ax[0].plot(res_2d["sigmas"], res_2d["likelihood"], "-*")
             ax[0].grid(which="both")
-            ax[0].set_ylabel("# Clusters")
+            ax[0].set_ylabel("ANLL")
             ax[1].semilogy(res_2d["sigmas"], res_2d["clusters_proba"], "-+")
             ax[1].grid(which="both")
             ax[1].set_xlabel("% KNN")
-            ax[1].set_ylabel("ANLL")
+            ax[1].set_ylabel("# Clusters")
+
             plt.show()
 
         if plot3d and len(self.energy_merge_results) > 0:

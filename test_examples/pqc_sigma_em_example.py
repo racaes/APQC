@@ -9,6 +9,7 @@ from collections import Counter
 from main.pqc import PQC
 from pqc_utils.generate_toy_datasets import get_2d_toy_data
 from main.density_estimation import DensityEstimator
+from sklearn.cluster import OPTICS, DBSCAN
 
 cm = plt.cm.get_cmap('RdYlBu')
 D = 2
@@ -29,6 +30,7 @@ scan_sigma = False
 # find_best_sigma = True
 preview = False
 pqc_sigmas_check = False
+optics_comparison = False
 if preview:
     sns.scatterplot(x=x_gen[:, 0], y=x_gen[:, 1], alpha=0.6, hue=y.flatten(), palette="deep")
     plt.show()
@@ -51,21 +53,21 @@ d_e = DensityEstimator(data_gen=pqc.data_gen,
                        optimizer=optimizer)
 
 if pqc_sigmas_check:
-    knn_ratios = np.linspace(0.10, 0.5, 30)
+    knn_ratios = np.linspace(0.34, 0.36, 20)
     pqc.scan_multiple_sigmas(knn_ratios=knn_ratios, plot2d=True, plot3d=True)
     print("PQC_sigmas_check!")
 
 for i in range(20):
 
     if i == 0:
-        pqc.set_sigmas(knn_ratio=0.45)
+        pqc.set_sigmas(knn_ratio=0.15)
         sigmas, log_sigmas = None, None
         ll = None
         sigma_dif = None
     else:
         if not scan_sigma:
             d_e.set_clusters(pqc.proba_labels)
-            ll = d_e.fit(preset_init=pqc.sigmas, steps=10, check_gradients=False)
+            ll = d_e.fit(preset_init=pqc.sigmas, steps=10, check_gradients=True)
             # if len(np.unique(pqc.proba_labels)) > 1:
             #     d_e.set_clusters(pqc.proba_labels)
             #     ll = d_e.fit(preset_init=pqc.sigmas, steps=1)
@@ -148,6 +150,22 @@ sns.scatterplot(x=x_gen[:, 0].flatten(), y=x_gen[:, 1].flatten(), alpha=0.4,
 all_ll_trained = np.concatenate(result_dict["ll_trained"][1:])
 plt.figure()
 plt.plot(all_ll_trained)
-plt.show()
 
+if optics_comparison:
+    clustering = OPTICS(min_samples=5, min_cluster_size=20)
+    clustering.fit(X)
+    print(Counter(clustering.labels_))
+
+    plt.figure()
+    sns.scatterplot(x=x_gen[:, 0].flatten(), y=x_gen[:, 1].flatten(), alpha=0.4,
+                    hue=clustering.labels_, palette="deep")
+
+    clustering = DBSCAN(eps=pqc.scale.numpy())
+    clustering.fit(X)
+    print(Counter(clustering.labels_))
+
+    plt.figure()
+    sns.scatterplot(x=x_gen[:, 0].flatten(), y=x_gen[:, 1].flatten(), alpha=0.4,
+                    hue=clustering.labels_, palette="deep")
+plt.show()
 print("End of script!")
