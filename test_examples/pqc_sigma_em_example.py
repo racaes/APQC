@@ -50,6 +50,7 @@ d_e = DensityEstimator(data_gen=pqc.data_gen,
                        eps=1e-4,
                        # batch=1,
                        scale=pqc.scale,
+                       force_cpu=False,
                        optimizer=optimizer)
 
 if pqc_sigmas_check:
@@ -58,16 +59,15 @@ if pqc_sigmas_check:
     print("PQC_sigmas_check!")
 
 for i in range(20):
-
     if i == 0:
-        pqc.set_sigmas(knn_ratio=0.15)
+        pqc.set_sigmas(knn_ratio=0.35)
         sigmas, log_sigmas = None, None
         ll = None
         sigma_dif = None
     else:
         if not scan_sigma:
             d_e.set_clusters(pqc.proba_labels)
-            ll = d_e.fit(preset_init=pqc.sigmas, steps=10, check_gradients=True)
+            ll = d_e.fit(preset_init=pqc.sigmas, steps=10, check_gradients=False)
             # if len(np.unique(pqc.proba_labels)) > 1:
             #     d_e.set_clusters(pqc.proba_labels)
             #     ll = d_e.fit(preset_init=pqc.sigmas, steps=1)

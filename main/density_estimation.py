@@ -80,7 +80,8 @@ class DensityEstimator:
         self.neigh = NearestNeighbors(n_neighbors=10)
         self.neigh.fit(self.data_gen)
         knn_dist, _ = self.neigh.kneighbors(self.data_gen, return_distance=True)
-        self.min_sigma = np.median(knn_dist[:, 1:])
+        self.min_sigma = tf.cast(tf.constant(np.median(knn_dist[:, 1:], axis=1).reshape(-1, 1)),
+                                 dtype=self.float_type)
 
         print("wait a second")
 
@@ -239,10 +240,15 @@ class DensityEstimator:
             if not self.already_printed:
                 tf.print("Regularization is added to loglikelihood.")
                 self.already_printed = True
-            loglikelihood += tf.reduce_mean(tf.where(tf.math.less_equal(exp_kernel_i, self.eps),
-                                                     norm_factor * 1.0,
-                                                     # tf.square(sigma_mat) * 5.0,
-                                                     tf.zeros_like(dens_i, dtype=self.float_type)))
+            # loglikelihood += tf.reduce_mean(tf.where(tf.math.less_equal(exp_kernel_i, self.eps),
+            #                                          norm_factor * 1.0,
+            #                                          # tf.square(sigma_mat) * 5.0,
+            #                                          tf.zeros_like(dens_i, dtype=self.float_type)))
+            loglikelihood += tf.reduce_mean(tf.where(tf.math.less_equal(tf.exp(log_sigma), self.min_sigma),
+                                                     # -tf.exp(log_sigma) * 1.0,
+                                                     # tf.math.divide(1.0, tf.exp(log_sigma)) * 1.0,
+                                                     -tf.square(tf.exp(log_sigma)) * 100.0,
+                                                     tf.zeros_like(log_sigma, dtype=self.float_type)))
 
         return loglikelihood
 
@@ -385,7 +391,7 @@ class DensityEstimator:
         plt.plot(data_eval.numpy()[0][0], data_eval.numpy()[0][1], 'r+')
         plt.show()
 
-        x = tf.cast(tf.linspace(-4, 4, 500), dtype=self.float_type)
+        x = tf.cast(tf.linspace(-3, 3, 100), dtype=self.float_type)
         for i in range(10):
             ls = tf.Variable(initial_value=self.log_sigma.value())
 
@@ -394,7 +400,7 @@ class DensityEstimator:
             z = []
 
             for x_i in x:
-                ls[i].assign(x_i)
+                ls[i].assign([x_i])
                 with tf.GradientTape() as tape:
                     tape.watch(ls)
                     loss = self.compute_loss(data_eval, self.data_gen, ls)
