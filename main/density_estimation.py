@@ -4,7 +4,7 @@ from typing import Optional, Union
 import numpy as np
 import tensorflow as tf
 
-from pqc_utils.pqc_utils import pairwise_d2_mat_v2, set_float_type, optimizers_classes
+from pqc_utils import pairwise_d2_mat_v2, set_float_type, optimizers_classes
 
 
 class DensityEstimator:
