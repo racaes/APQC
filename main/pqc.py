@@ -229,7 +229,7 @@ class PQC:
                 t0 = time.time()
 
                 k_proba_joint_i, _ = reduce_sum(data=wave_i.numpy(), vector=labels)
-                print(f"Reduce op runtime: {round(time.time() - t0, 3)} s")
+                # print(f"Reduce op runtime: {round(time.time() - t0, 3)} s")
 
                 k_proba_sum = np.sum(k_proba_joint_i, axis=0, keepdims=True)
                 k_proba_i = k_proba_joint_i / k_proba_sum
