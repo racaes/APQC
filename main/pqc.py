@@ -152,7 +152,7 @@ class PQC:
         :return:
         """
         device = self.device if not self.force_cpu else "CPU:0"
-        knn_indices = np.array([int(i * self.N_gen) for i in knn_ratios], dtype=np.int)
+        knn_indices = np.array([int(i * self.N_gen) for i in knn_ratios], dtype="int")
         with tf.device(device):
             t0 = time.time()
             knn_d2 = PQC.knn_d2_batched_v1(data=self.data_gen.numpy(),  # If _v1 .numpy() is not needed.
@@ -662,7 +662,7 @@ class PQC:
 
         merged_sample_proba_labels = np.zeros_like(merged_sample_labels)
         merged_loglikelihood = np.zeros(len(energies))
-        cluster_proba_number = np.zeros(len(energies), dtype=np.int)
+        cluster_proba_number = np.zeros(len(energies), dtype="int")
         for k in range(len(energies)):
             _, p_labels, ll = self.cluster_probability_per_sample_batched(data_train=self.data_gen,
                                                                           labels=merged_sample_labels[:, k],
